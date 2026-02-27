@@ -1,0 +1,9 @@
+{
+  "name": "CleanMainMenu",
+  "version_number": "1.0.0",
+  "website_url": "",
+  "description": "Cleans up Valheim main menu: hides modded text, changelog, top-right clutter (configurable).",
+  "dependencies": [
+    "denikson-BepInExPack_Valheim-5.4.2202"
+  ]
+}
