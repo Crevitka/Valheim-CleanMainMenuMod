@@ -1,9 +1,11 @@
 ﻿using BepInEx;
 using BepInEx.Configuration;
 using System.Collections;
+using System.Linq;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
-[BepInPlugin("crevitka.cleanmenu", "Clean Main Menu", "1.0.0")]
+[BepInPlugin("crevitka.cleanmenu", "Clean Main Menu", "1.0.4")]
 public class CleanMainMenuPlugin : BaseUnityPlugin
 {
     // Toggles
@@ -12,10 +14,18 @@ public class CleanMainMenuPlugin : BaseUnityPlugin
     private ConfigEntry<bool> _hideTopRightMerch;
     private ConfigEntry<bool> _hideChangelog;
 
-    // Timing
+    // Timing / reliability
+    private ConfigEntry<float> _initialDelaySeconds;
     private ConfigEntry<int> _attempts;
     private ConfigEntry<float> _intervalSeconds;
-    private ConfigEntry<float> _initialDelaySeconds;
+
+    // Advanced
+    private ConfigEntry<bool> _reapplyOnMenuScenes;
+    private ConfigEntry<bool> _watchMenuContinuously;
+    private ConfigEntry<float> _watchIntervalSeconds;
+
+    private Coroutine _hideRoutine;
+    private Coroutine _watchRoutine;
 
     private void Awake()
     {
@@ -34,7 +44,7 @@ public class CleanMainMenuPlugin : BaseUnityPlugin
 
         // Timing / reliability
         _initialDelaySeconds = Config.Bind("Timing", "Initial delay (seconds)", 1.5f,
-            "Wait before first attempt (menu UI may spawn a bit позже).");
+            "Wait before first attempt (menu UI may spawn a bit later).");
 
         _attempts = Config.Bind("Timing", "Attempts", 10,
             "How many times to try hiding (useful when UI spawns late or gets recreated).");
@@ -42,21 +52,109 @@ public class CleanMainMenuPlugin : BaseUnityPlugin
         _intervalSeconds = Config.Bind("Timing", "Interval between attempts (seconds)", 1.0f,
             "Delay between attempts.");
 
+        // Advanced
+        _reapplyOnMenuScenes = Config.Bind("Advanced", "Reapply on menu scene load", true,
+            "Re-apply cleanup whenever a menu scene loads (fixes UI coming back after exiting a world).");
+
+        _watchMenuContinuously = Config.Bind("Advanced", "Watch menu continuously", true,
+            "While in the menu, keep re-applying cleanup periodically (handles UI being recreated later).");
+
+        _watchIntervalSeconds = Config.Bind("Advanced", "Watch interval (seconds)", 1.0f,
+            "How often to re-apply cleanup while watching the menu.");
+
+        if (_reapplyOnMenuScenes.Value)
+            SceneManager.sceneLoaded += OnSceneLoaded;
+
         Logger.LogInfo("Clean Main Menu loaded (config initialized).");
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     private void Start()
     {
-        StartCoroutine(HideRoutine());
+        // First run (game startup)
+        StartApplyForCurrentScene();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // When returning to menu (or any scene load), re-apply if it's a menu scene.
+        StartApplyForScene(scene);
+    }
+
+    private void StartApplyForCurrentScene()
+    {
+        StartApplyForScene(SceneManager.GetActiveScene());
+    }
+
+    private void StartApplyForScene(Scene scene)
+    {
+        if (!IsMenuScene(scene))
+        {
+            StopWatchdog();
+            return;
+        }
+
+        RestartHideRoutine();
+
+        if (_watchMenuContinuously.Value)
+            StartWatchdog();
+        else
+            StopWatchdog();
+    }
+
+    /// <summary>
+    /// Valheim main menu scene is typically "start". We also allow fallback detection by looking for StartGui/GUI.
+    /// </summary>
+    private bool IsMenuScene(Scene scene)
+    {
+        if (!string.IsNullOrEmpty(scene.name))
+        {
+            string lower = scene.name.ToLower();
+            if (lower == "start" || lower.Contains("start"))
+                return true;
+        }
+
+        // fallback check
+        return GameObject.Find("StartGui") != null || GameObject.Find("GUI") != null;
+    }
+
+    private void RestartHideRoutine()
+    {
+        if (_hideRoutine != null)
+        {
+            StopCoroutine(_hideRoutine);
+            _hideRoutine = null;
+        }
+        _hideRoutine = StartCoroutine(HideRoutine());
+    }
+
+    private void StartWatchdog()
+    {
+        if (_watchRoutine != null) return;
+        _watchRoutine = StartCoroutine(MenuWatchdog());
+    }
+
+    private void StopWatchdog()
+    {
+        if (_watchRoutine != null)
+        {
+            StopCoroutine(_watchRoutine);
+            _watchRoutine = null;
+        }
     }
 
     private IEnumerator HideRoutine()
     {
-        if (_initialDelaySeconds.Value > 0f)
-            yield return new WaitForSeconds(_initialDelaySeconds.Value);
+        float initialDelay = Mathf.Max(0f, _initialDelaySeconds.Value);
+        if (initialDelay > 0f)
+            yield return new WaitForSeconds(initialDelay);
 
-        int tries = Mathf.Max(1, _attempts.Value);
-        float wait = Mathf.Max(0.1f, _intervalSeconds.Value);
+        int tries = Mathf.Clamp(_attempts.Value, 1, 60);
+        float wait = Mathf.Clamp(_intervalSeconds.Value, 0.1f, 10f);
 
         for (int i = 0; i < tries; i++)
         {
@@ -65,6 +163,24 @@ public class CleanMainMenuPlugin : BaseUnityPlugin
         }
 
         Logger.LogInfo("Clean Main Menu applied.");
+    }
+
+    private IEnumerator MenuWatchdog()
+    {
+        float wait = Mathf.Clamp(_watchIntervalSeconds.Value, 0.25f, 10f);
+
+        while (true)
+        {
+            // If we left the menu, stop watching.
+            if (!IsMenuScene(SceneManager.GetActiveScene()))
+            {
+                StopWatchdog();
+                yield break;
+            }
+
+            ApplyOnce();
+            yield return new WaitForSeconds(wait);
+        }
     }
 
     private void ApplyOnce()
