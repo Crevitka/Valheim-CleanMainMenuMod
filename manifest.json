@@ -1,6 +1,6 @@
 {
   "name": "CleanMainMenu",
-  "version_number": "1.1.0",
+  "version_number": "1.2.0",
   "website_url": "https://github.com/Crevitka/Valheim-CleanMainMenuMod",
   "description": "Cleans up Valheim main menu: hides modded text, changelog, merch store (configurable).",
   "dependencies": [

@@ -6,7 +6,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-[BepInPlugin("crevitka.cleanmenu", "Clean Main Menu", "1.1.0")]
+[BepInPlugin("crevitka.cleanmenu", "Clean Main Menu", "1.2.0")]
 public class CleanMainMenuPlugin : BaseUnityPlugin
 {
     // Toggles
