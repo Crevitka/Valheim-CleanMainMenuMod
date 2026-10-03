@@ -12,7 +12,9 @@ Cleans up the Valheim main menu by removing visual clutter and mod-related UI el
 ## Features
 • Hide "modded" warning text  
 • Hide showlog button  
-• Hide changelog panel  
+• Hide changelog panel, "new changes" notice and changelog button (Valheim 1.0+)  
+• Hide version number  
+• Hide EULA (user agreement) button  
 • Hide merch store  
 
 All features are configurable via BepInEx config.
