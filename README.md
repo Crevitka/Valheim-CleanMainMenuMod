@@ -43,3 +43,9 @@ Perfect for:
 
 💻 **GitHub** — source code & issues
 👉 https://github.com/Crevitka/Valheim-CleanMainMenuMod
+
+📰 **Reddit** — updates & discussion
+👉 https://www.reddit.com/user/Crevitka/
+
+🐦 **X** — updates & previews
+👉 https://x.com/Crevitka
